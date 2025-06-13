@@ -34,11 +34,7 @@ const { WelcomeMessages } = require("../models/welcomeMessages");
 const { ApiKey } = require("../models/apiKeys");
 const { getCustomModels } = require("../utils/helpers/customModels");
 const { WorkspaceChats } = require("../models/workspaceChats");
-const {
-  flexUserRoleValid,
-  ROLES,
-  isMultiUserSetup,
-} = require("../utils/middleware/multiUserProtected");
+const { isMultiUserSetup } = require("../utils/middleware/multiUserProtected");
 const { fetchPfp, determinePfpFilepath } = require("../utils/files/pfp");
 const { exportChatsAsType } = require("../utils/helpers/chat/convertTo");
 const { EventLogs } = require("../models/eventLogs");
@@ -61,6 +57,7 @@ const {
 const { TemporaryAuthToken } = require("../models/temporaryAuthToken");
 const { SystemPromptVariables } = require("../models/systemPromptVariables");
 const { VALID_COMMANDS } = require("../utils/chats");
+const AccessManager = require("../utils/AccessManager");
 
 function systemEndpoints(app) {
   if (!app) return;
@@ -364,7 +361,7 @@ function systemEndpoints(app) {
 
   app.get(
     "/system/system-vectors",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["system.countVectors"])],
     async (request, response) => {
       try {
         const query = queryParams(request);
@@ -382,7 +379,7 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/remove-document",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["documents.remove"])],
     async (request, response) => {
       try {
         const { name } = reqBody(request);
@@ -397,7 +394,7 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/remove-documents",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["documents.remove"])],
     async (request, response) => {
       try {
         const { names } = reqBody(request);
@@ -412,7 +409,7 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/remove-folder",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["documents.remove"])],
     async (request, response) => {
       try {
         const { name } = reqBody(request);
@@ -427,7 +424,7 @@ function systemEndpoints(app) {
 
   app.get(
     "/system/local-files",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["documents.read"])],
     async (_, response) => {
       try {
         const localFiles = await viewLocalFiles();
@@ -474,7 +471,7 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/update-env",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    [validatedRequest, AccessManager.flexibleAC(["system.update"])],
     async (request, response) => {
       try {
         const body = reqBody(request);
@@ -542,7 +539,7 @@ function systemEndpoints(app) {
         const { user, error } = await User.create({
           username,
           password,
-          role: ROLES.admin,
+          role: AccessManager.defaultRoles.admin,
         });
 
         if (error || !user) {
@@ -671,7 +668,7 @@ function systemEndpoints(app) {
 
   app.get(
     "/system/pfp/:id",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [validatedRequest, AccessManager.flexibleAC(["users.pfp.read"])],
     async function (request, response) {
       try {
         const { id } = request.params;
@@ -700,7 +697,11 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/upload-pfp",
-    [validatedRequest, flexUserRoleValid([ROLES.all]), handlePfpUpload],
+    [
+      validatedRequest,
+      AccessManager.flexibleAC(["users.pfp.update"]),
+      handlePfpUpload,
+    ],
     async function (request, response) {
       try {
         const user = await userFromSession(request, response);
@@ -740,7 +741,7 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/remove-pfp",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [validatedRequest, AccessManager.flexibleAC(["users.pfp.delete"])],
     async function (request, response) {
       try {
         const user = await userFromSession(request, response);
@@ -778,7 +779,7 @@ function systemEndpoints(app) {
     "/system/upload-logo",
     [
       validatedRequest,
-      flexUserRoleValid([ROLES.admin, ROLES.manager]),
+      AccessManager.flexibleAC(["system.branding.update"]),
       handleAssetUpload,
     ],
     async (request, response) => {
@@ -827,7 +828,7 @@ function systemEndpoints(app) {
 
   app.get(
     "/system/remove-logo",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["system.branding.delete"])],
     async (_request, response) => {
       try {
         const currentLogoFilename = await SystemSettings.currentLogoFilename();
@@ -850,7 +851,7 @@ function systemEndpoints(app) {
 
   app.get(
     "/system/welcome-messages",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [validatedRequest, AccessManager.flexibleAC(["welcomeMessages.read"])],
     async function (_, response) {
       try {
         const welcomeMessages = await WelcomeMessages.getMessages();
@@ -866,7 +867,7 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/set-welcome-messages",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["welcomeMessages.update"])],
     async (request, response) => {
       try {
         const { messages = [] } = reqBody(request);
@@ -969,7 +970,7 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/custom-models",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    [validatedRequest, AccessManager.flexibleAC(["system.models.read"])],
     async (request, response) => {
       try {
         const { provider, apiKey = null, basePath = null } = reqBody(request);
@@ -991,7 +992,7 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/event-logs",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    [validatedRequest, AccessManager.flexibleAC(["eventLogs.read"])],
     async (request, response) => {
       try {
         const { offset = 0, limit = 10 } = reqBody(request);
@@ -1011,7 +1012,7 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/event-logs",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    [validatedRequest, AccessManager.flexibleAC(["eventLogs.delete"])],
     async (_, response) => {
       try {
         await EventLogs.delete();
@@ -1033,7 +1034,7 @@ function systemEndpoints(app) {
     [
       chatHistoryViewable,
       validatedRequest,
-      flexUserRoleValid([ROLES.admin, ROLES.manager]),
+      AccessManager.flexibleAC(["workspaceChats.read"]),
     ],
     async (request, response) => {
       try {
@@ -1057,7 +1058,7 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/workspace-chats/:id",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["workspaceChats.delete"])],
     async (request, response) => {
       try {
         const { id } = request.params;
@@ -1077,7 +1078,7 @@ function systemEndpoints(app) {
     [
       chatHistoryViewable,
       validatedRequest,
-      flexUserRoleValid([ROLES.manager, ROLES.admin]),
+      AccessManager.flexibleAC(["workspaceChats.export"]),
     ],
     async (request, response) => {
       try {
@@ -1136,7 +1137,7 @@ function systemEndpoints(app) {
 
   app.get(
     "/system/slash-command-presets",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [validatedRequest, AccessManager.flexibleAC(["slashCommands.read"])],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -1151,7 +1152,7 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/slash-command-presets",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [validatedRequest, AccessManager.flexibleAC(["slashCommands.create"])],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -1189,7 +1190,7 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/slash-command-presets/:slashCommandId",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [validatedRequest, AccessManager.flexibleAC(["slashCommands.update"])],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -1235,7 +1236,7 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/slash-command-presets/:slashCommandId",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [validatedRequest, AccessManager.flexibleAC(["slashCommands.delete"])],
     async (request, response) => {
       try {
         const { slashCommandId } = request.params;
@@ -1262,7 +1263,10 @@ function systemEndpoints(app) {
 
   app.get(
     "/system/prompt-variables",
-    [validatedRequest, flexUserRoleValid([ROLES.all])],
+    [
+      validatedRequest,
+      AccessManager.flexibleAC(["systemPromptVariables.read"]),
+    ],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -1280,7 +1284,10 @@ function systemEndpoints(app) {
 
   app.post(
     "/system/prompt-variables",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    [
+      validatedRequest,
+      AccessManager.flexibleAC(["systemPromptVariables.create"]),
+    ],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -1316,7 +1323,10 @@ function systemEndpoints(app) {
 
   app.put(
     "/system/prompt-variables/:id",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    [
+      validatedRequest,
+      AccessManager.flexibleAC(["systemPromptVariables.update"]),
+    ],
     async (request, response) => {
       try {
         const { id } = request.params;
@@ -1358,7 +1368,10 @@ function systemEndpoints(app) {
 
   app.delete(
     "/system/prompt-variables/:id",
-    [validatedRequest, flexUserRoleValid([ROLES.admin])],
+    [
+      validatedRequest,
+      AccessManager.flexibleAC(["systemPromptVariables.delete"]),
+    ],
     async (request, response) => {
       try {
         const { id } = request.params;

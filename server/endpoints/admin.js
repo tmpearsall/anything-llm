@@ -3,7 +3,6 @@ const { Document } = require("../models/documents");
 const { EventLogs } = require("../models/eventLogs");
 const { Invite } = require("../models/invite");
 const { SystemSettings } = require("../models/systemSettings");
-const { Telemetry } = require("../models/telemetry");
 const { User } = require("../models/user");
 const { DocumentVectors } = require("../models/vectors");
 const { Workspace } = require("../models/workspace");
@@ -18,23 +17,18 @@ const {
   validCanModify,
 } = require("../utils/helpers/admin");
 const { reqBody, userFromSession, safeJsonParse } = require("../utils/http");
-const {
-  strictMultiUserRoleValid,
-  flexUserRoleValid,
-  ROLES,
-} = require("../utils/middleware/multiUserProtected");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
 const ImportedPlugin = require("../utils/agents/imported");
-const {
-  simpleSSOLoginDisabledMiddleware,
-} = require("../utils/middleware/simpleSSOEnabled");
+
+const AccessManager = require("../utils/AccessManager");
+
 
 function adminEndpoints(app) {
   if (!app) return;
 
   app.get(
     "/admin/users",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["users.read"])],
     async (_request, response) => {
       try {
         const users = await User.where();
@@ -48,7 +42,7 @@ function adminEndpoints(app) {
 
   app.post(
     "/admin/users/new",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["users.create"])],
     async (request, response) => {
       try {
         const currUser = await userFromSession(request, response);
@@ -84,7 +78,7 @@ function adminEndpoints(app) {
 
   app.post(
     "/admin/user/:id",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["users.update"])],
     async (request, response) => {
       try {
         const currUser = await userFromSession(request, response);
@@ -125,7 +119,7 @@ function adminEndpoints(app) {
 
   app.delete(
     "/admin/user/:id",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["users.delete"])],
     async (request, response) => {
       try {
         const currUser = await userFromSession(request, response);
@@ -157,7 +151,7 @@ function adminEndpoints(app) {
 
   app.get(
     "/admin/invites",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["invite.read"])],
     async (_request, response) => {
       try {
         const invites = await Invite.whereWithUsers();
@@ -171,11 +165,8 @@ function adminEndpoints(app) {
 
   app.post(
     "/admin/invite/new",
-    [
-      validatedRequest,
-      strictMultiUserRoleValid([ROLES.admin, ROLES.manager]),
-      simpleSSOLoginDisabledMiddleware,
-    ],
+    [validatedRequest, AccessManager.strictAC(["invite.create"])],
+
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -203,7 +194,7 @@ function adminEndpoints(app) {
 
   app.delete(
     "/admin/invite/:id",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["invite.delete"])],
     async (request, response) => {
       try {
         const { id } = request.params;
@@ -223,7 +214,7 @@ function adminEndpoints(app) {
 
   app.get(
     "/admin/workspaces",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["workspace.read"])],
     async (_request, response) => {
       try {
         const workspaces = await Workspace.whereWithUsers();
@@ -237,7 +228,7 @@ function adminEndpoints(app) {
 
   app.get(
     "/admin/workspaces/:workspaceId/users",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["workspaceUsers.read"])],
     async (request, response) => {
       try {
         const { workspaceId } = request.params;
@@ -252,7 +243,7 @@ function adminEndpoints(app) {
 
   app.post(
     "/admin/workspaces/new",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["workspace.create"])],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -271,7 +262,7 @@ function adminEndpoints(app) {
 
   app.post(
     "/admin/workspaces/:workspaceId/update-users",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["workspaceUsers.update"])],
     async (request, response) => {
       try {
         const { workspaceId } = request.params;
@@ -290,7 +281,7 @@ function adminEndpoints(app) {
 
   app.delete(
     "/admin/workspaces/:id",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.strictAC(["workspace.delete"])],
     async (request, response) => {
       try {
         const { id } = request.params;
@@ -322,7 +313,7 @@ function adminEndpoints(app) {
   // System preferences but only by array of labels
   app.get(
     "/admin/system-preferences-for",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["systemSettings.read"])],
     async (request, response) => {
       try {
         const requestedSettings = {};
@@ -419,7 +410,7 @@ function adminEndpoints(app) {
   // DEPRECATED - use /admin/system-preferences-for instead with ?labels=... comma separated string of labels
   app.get(
     "/admin/system-preferences",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["systemSettings.read"])],
     async (_, response) => {
       try {
         const embedder = getEmbeddingEngineSelection();
@@ -480,7 +471,7 @@ function adminEndpoints(app) {
 
   app.post(
     "/admin/system-preferences",
-    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    [validatedRequest, AccessManager.flexibleAC(["systemSettings.update"])],
     async (request, response) => {
       try {
         const updates = reqBody(request);
@@ -495,7 +486,7 @@ function adminEndpoints(app) {
 
   app.get(
     "/admin/api-keys",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin])],
+    [validatedRequest, AccessManager.strictAC(["apiKeys.read"])],
     async (_request, response) => {
       try {
         const apiKeys = await ApiKey.whereWithUser({});
@@ -515,7 +506,7 @@ function adminEndpoints(app) {
 
   app.post(
     "/admin/generate-api-key",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin])],
+    [validatedRequest, AccessManager.strictAC(["apiKeys.create"])],
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
@@ -538,7 +529,7 @@ function adminEndpoints(app) {
 
   app.delete(
     "/admin/delete-api-key/:id",
-    [validatedRequest, strictMultiUserRoleValid([ROLES.admin])],
+    [validatedRequest, AccessManager.strictAC(["apiKeys.delete"])],
     async (request, response) => {
       try {
         const { id } = request.params;

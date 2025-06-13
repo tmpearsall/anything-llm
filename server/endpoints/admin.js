@@ -19,7 +19,9 @@ const {
 const { reqBody, userFromSession, safeJsonParse } = require("../utils/http");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
 const ImportedPlugin = require("../utils/agents/imported");
+
 const AccessManager = require("../utils/AccessManager");
+
 
 function adminEndpoints(app) {
   if (!app) return;
@@ -164,6 +166,7 @@ function adminEndpoints(app) {
   app.post(
     "/admin/invite/new",
     [validatedRequest, AccessManager.strictAC(["invite.create"])],
+
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
